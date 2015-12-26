@@ -3,10 +3,18 @@ var app         = express();
 var bodyParser  = require('body-parser');
 var morgan      = require('morgan');
 var mongoose    = require('mongoose');
+var http = require('http'),
+    path = require('path');
+var url = require('url');
+
 
 var jwt    = require('jsonwebtoken'); // used to create, sign, and verify tokens
 var config = require('./config'); // get our config file
 var User   = require('./app/models/user'); // get our mongoose model
+
+var fs = require('fs');
+var multiparty = require('multiparty');
+var request = require('request');
 
 // =======================
 // configuration =========
@@ -21,6 +29,7 @@ app.use(bodyParser.json());
 
 // use morgan to log requests to the console
 app.use(morgan('dev'));
+
 
 // =======================
 // routes ================
@@ -74,6 +83,115 @@ apiRoutes.post('/token', function(req, res) {
     });
 });
 
+apiRoutes.put('/avatar', function(req, res) {
+    console.log('connected /avatar---');
+    // создаем форму
+    var form = new multiparty.Form();
+    //здесь будет храниться путь с загружаемому файлу, его тип и размер
+    var uploadFile = {uploadPath: '', type: '', size: 0};
+    //максимальный размер файла
+    var maxSize = 20 * 1024 * 1024; //2MB
+    //поддерживаемые типы(в данном случае это картинки формата jpeg,jpg и png)
+    var supportMimeTypes = ['image/jpg', 'image/jpeg', 'image/png'];
+    //массив с ошибками произошедшими в ходе загрузки файла
+    var errors = [];
+
+    var filePath;
+
+    var token = req.body.token || req.query.token || req.headers['x-access-token'];
+
+    var fileName = jwt.verify(token, app.get('superSecret'));
+
+    //если произошла ошибка
+    form.on('error', function(err){
+        if(fs.existsSync(uploadFile.path)) {
+            //если загружаемый файл существует удаляем его
+            fs.unlinkSync(uploadFile.path);
+            console.log('error');
+        }
+    });
+
+    form.on('close', function() {
+        //если нет ошибок и все хорошо
+        if(errors.length == 0) {
+            //сообщаем что все хорошо
+            console.log('path=========', filePath);
+            User.update({
+                username: fileName
+            }, {$set: {avatar: filePath}}, function (err, itemsUpdated) {
+                if (err) {
+                    console.log(err);
+                } else if (itemsUpdated) {
+                    console.log('Updated successfully end', itemsUpdated);
+                } else {
+                    console.log('User not found in DB');
+                }
+            });
+            res.json({url : filePath});
+        }
+        else {
+            if(fs.existsSync(uploadFile.path)) {
+                //если загружаемый файл существует удаляем его
+                fs.unlinkSync(uploadFile.path);
+
+                User.update({
+                    username: fileName
+                }, {$set: {avatar: filePath}}, function (err, itemsUpdated) {
+                    if (err) {
+                        console.log(err);
+                    } else if (itemsUpdated) {
+                        console.log('Updated successfully exist', itemsUpdated);
+                        res.json({
+                            success: true
+                        });
+                    } else {
+                        console.log('User not found in DB');
+                    }
+                });
+            }
+            //сообщаем что все плохо и какие произошли ошибки
+            res.send({status: 'bad', errors: errors});
+        }
+    });
+
+    // при поступление файла
+    form.on('part', function(part) {
+        //читаем его размер в байтах
+        uploadFile.size = part.byteCount;
+        //читаем его тип
+        uploadFile.type = part.headers['content-type'];
+        //путь для сохранения файла
+        uploadFile.path = './files/' + fileName + '.jpeg'/*part.filename*/;
+        filePath = 'http://192.168.0.101:8888/api/files/' + fileName + '.jpeg'/*part.filename*/;
+
+        //проверяем размер файла, он не должен быть больше максимального размера
+        if(uploadFile.size > maxSize) {
+            errors.push('File size is ' + uploadFile.size + '. Limit is' + (maxSize / 1024 / 1024) + 'MB.');
+        }
+
+        //проверяем является ли тип поддерживаемым
+        if(supportMimeTypes.indexOf(uploadFile.type) == -1) {
+            errors.push('Unsupported mimetype ' + uploadFile.type);
+        }
+
+        //если нет ошибок то создаем поток для записи файла
+        if(errors.length == 0) {
+            var out = fs.createWriteStream(uploadFile.path);
+            part.pipe(out);
+        }
+        else {
+            //пропускаем
+            //вообще здесь нужно как-то остановить загрузку и перейти к onclose
+            part.resume();
+        }
+    });
+
+    // парсим форму
+    form.parse(req);
+
+});
+
+
 //-----------------------------//
 apiRoutes.post('/account', function(req, res) {
     console.log('connected to account register ---', req.body.username + ' / ' + req.body.email + ' / ' + req.body.password);
@@ -86,7 +204,8 @@ apiRoutes.post('/account', function(req, res) {
         username: username,
         email: email,
         displayname: username,
-        password: password
+        password: password,
+        avatar: ''
     });
 
     // save the sample user
@@ -249,6 +368,40 @@ apiRoutes.get('/account', function(req, res) {
     });
 
 });
+
+apiRoutes.get('/files/*', function(req, res){
+    console.log('request url', req.url);
+    var file = __dirname + req.url;
+    var filename = path.basename(file);
+    /*var mimetype = mime.lookup(file);*/
+
+    /*res.setHeader('Content-disposition', 'attachment; filename=' + filename);*/
+    /*res.setHeader('Content-type', mimetype);*/
+
+    var filestream = fs.createReadStream(file);
+    filestream.pipe(res);
+
+    /*if(req.param("url")) {
+
+        var url = unescape(req.param("url"));
+        var bl = new BufferList();
+        request({uri:url, responseBodyStream: bl}, function (error, response, body) {
+            if (!error && response.statusCode == 200) {
+                var data_uri_prefix = "data:" + response.headers["content-type"] + ";base64,";
+                var image = new Buffer(bl.toString(), 'binary').toString('base64');
+                image = data_uri_prefix + image;
+                res.send('<img src="'+image+'"/>');
+            }
+        });
+    }*/
+});/*('/files', function(req, res) {
+    request.head(req.body, function(err, res, body){
+        console.log('content-type:', res.headers['content-type']);
+        console.log('content-length:', res.headers['content-length']);
+
+        request(uri).pipe(fs.createWriteStream(filename)).on('close', callback);
+    });
+});*/
 
 
 
