@@ -6,6 +6,7 @@ var mongoose    = require('mongoose');
 var http = require('http'),
     path = require('path');
 var url = require('url');
+var assert = require('assert');
 
 
 var jwt    = require('jsonwebtoken'); // used to create, sign, and verify tokens
@@ -55,12 +56,12 @@ apiRoutes.post('/token', function(req, res) {
         if (!user) {
             res.json({ success: false, message: 'Authentication failed. User not found.' });
         } else if (user) {
-
+            console.log('user found', req.body.username);
             // check if password matches
             if (user.password != req.body.password) {
                 res.json({ success: false, message: 'Authentication failed. Wrong password.' });
             } else {
-
+                console.log('password correct----');
                 // if user is found and password is right
                 // create a token
                 var token = jwt.sign(req.body.username, app.get('superSecret'), {
@@ -118,7 +119,7 @@ apiRoutes.put('/avatar', function(req, res) {
             console.log('path=========', filePath);
             User.update({
                 username: fileName
-            }, {$set: {avatar: filePath}}, function (err, itemsUpdated) {
+            }, {$set: {avatarUrl: filePath}}, function (err, itemsUpdated) {
                 if (err) {
                     console.log(err);
                 } else if (itemsUpdated) {
@@ -136,7 +137,7 @@ apiRoutes.put('/avatar', function(req, res) {
 
                 User.update({
                     username: fileName
-                }, {$set: {avatar: filePath}}, function (err, itemsUpdated) {
+                }, {$set: {avatarIrl: filePath}}, function (err, itemsUpdated) {
                     if (err) {
                         console.log(err);
                     } else if (itemsUpdated) {
@@ -203,9 +204,11 @@ apiRoutes.post('/account', function(req, res) {
     var newUser = new User({
         username: username,
         email: email,
-        displayname: username,
+        displayName: username,
         password: password,
-        avatar: ''
+        /*id: '',*/
+        avatarUrl: '',
+        isContact: true
     });
 
     // save the sample user
@@ -222,7 +225,7 @@ apiRoutes.post('/account', function(req, res) {
         res.json({
             success: true,
             username: username,
-            displayname: username,
+            displayName: username,
             email: email,
             token: token
 
@@ -242,13 +245,13 @@ apiRoutes.put('/account', function(req, res) {
             // if everything is good, save to request for use in other routes
             User.update({
                 username: decoded
-            }, {$set: {displayname: displayname, email: email}}, function (err, itemsUpdated) {
+            }, {$set: {displayName: displayname, email: email}}, function (err, itemsUpdated) {
                 if (err) {
                     console.log(err);
                 } else if (itemsUpdated) {
                     console.log('Updated successfully', itemsUpdated);
                     res.json({
-                        displayname: displayname,
+                        displayName: displayname,
                         email: email
                     });
                 } else {
@@ -327,11 +330,11 @@ apiRoutes.get('/', function(req, res) {
 });
 
 // route to return all users (GET http://localhost:8080/api/users)
-apiRoutes.get('/users', function(req, res) {
+/*apiRoutes.get('/users', function(req, res) {
     User.find({}, function(err, users) {
         res.json(users);
     });
-});
+});*/
 
 //get user for login with token
 apiRoutes.get('/account', function(req, res) {
@@ -356,7 +359,7 @@ apiRoutes.get('/account', function(req, res) {
                 if (!user) {
                     res.json({ success: false, message: 'Authentication failed. User not found.' });
                 } else if (user) {
-                    console.log(' decoded token username', decoded)
+                    console.log(' decoded token username', decoded);
 
                     // return the information including token as JSON
                     res.json(user);
@@ -381,27 +384,32 @@ apiRoutes.get('/files/*', function(req, res){
     var filestream = fs.createReadStream(file);
     filestream.pipe(res);
 
-    /*if(req.param("url")) {
+});
 
-        var url = unescape(req.param("url"));
-        var bl = new BufferList();
-        request({uri:url, responseBodyStream: bl}, function (error, response, body) {
-            if (!error && response.statusCode == 200) {
-                var data_uri_prefix = "data:" + response.headers["content-type"] + ";base64,";
-                var image = new Buffer(bl.toString(), 'binary').toString('base64');
-                image = data_uri_prefix + image;
-                res.send('<img src="'+image+'"/>');
-            }
-        });
-    }*/
-});/*('/files', function(req, res) {
-    request.head(req.body, function(err, res, body){
-        console.log('content-type:', res.headers['content-type']);
-        console.log('content-length:', res.headers['content-length']);
+//--------------------------------------------------------//
+//Contact Services//
+//-------------------------------------------------------//
+apiRoutes.get('/users', function(req, res) {
+    var urlq = req.url;
+    console.log('url----', urlq);
+    var url_parts = url.parse(urlq, true);
+    console.log('url_parts----', url_parts);
+    var query = url_parts.query;
+    console.log('query----', query.query);
+    var queryForSearch = /*'/.*' + */query.query/* + '.*!/i'*/;
+    console.log('queryForSearch ==== ', queryForSearch);
 
-        request(uri).pipe(fs.createWriteStream(filename)).on('close', callback);
+    /*var cursor = */User.find({username: new RegExp(queryForSearch, 'i')}/*{ $in: query}*/, function(err, users) {
+        console.log('result search---', users);
+        res.send({users: users,
+        query: queryForSearch});
+
     });
-});*/
+    /*
+    User.find({}, function(err, users) {
+        res.json(users);
+    });*/
+});
 
 
 

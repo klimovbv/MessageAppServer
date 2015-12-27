@@ -3,9 +3,11 @@ var Schema = mongoose.Schema;
 
 // set up a mongoose model and pass it using module.exports
 module.exports = mongoose.model('User', new Schema({
-    username: String,
     email: String,
-    displayname: String,
     password: String,
-    avatar: String
+    /*id: String,*/
+    isContact: Boolean,
+    displayName: String,
+    username: String,
+    avatarUrl: String
 }));
