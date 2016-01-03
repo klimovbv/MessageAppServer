@@ -12,10 +12,12 @@ var assert = require('assert');
 var jwt    = require('jsonwebtoken'); // used to create, sign, and verify tokens
 var config = require('./config'); // get our config file
 var User   = require('./app/models/user'); // get our mongoose model
+var Request = require('./app/models/contactrequest');
 
 var fs = require('fs');
 var multiparty = require('multiparty');
 var request = require('request');
+var usernameFromToken;
 
 // =======================
 // configuration =========
@@ -307,6 +309,7 @@ apiRoutes.use(function(req, res, next) {
             } else {
                 // if everything is good, save to request for use in other routes
                 req.decoded = decoded;
+                usernameFromToken = decoded;
                 console.log(' decoded token ', decoded);
                 next();
             }
@@ -398,18 +401,84 @@ apiRoutes.get('/users', function(req, res) {
     console.log('query----', query.query);
     var queryForSearch = /*'/.*' + */query.query/* + '.*!/i'*/;
     console.log('queryForSearch ==== ', queryForSearch);
+    if (queryForSearch == ''){
+        console.log('null query!!!!!')
+        res.send({
+            users:[],
+            query: queryForSearch});
+    } else {
+        console.log('userNameFromToken ==== ', usernameFromToken);
 
-    /*var cursor = */User.find({username: new RegExp(queryForSearch, 'i')}/*{ $in: query}*/, function(err, users) {
-        console.log('result search---', users);
-        res.send({users: users,
-        query: queryForSearch});
 
-    });
-    /*
-    User.find({}, function(err, users) {
-        res.json(users);
-    });*/
+        User.find({$and: [{ username: new RegExp(queryForSearch, 'i')}, { username: {$ne: usernameFromToken}}]}/*{ $in: query}*/, function (err, users) {
+            console.log('result search---', users);
+
+            res.send({
+                users: users,
+                query: queryForSearch
+            });
+        });
+    }
 });
+
+//------------------------------------------------------------------//
+//Contacts API//
+//------------------------------------------------------------------//
+
+apiRoutes.post('/contact-requests/*', function(req, res) {
+    console.log('IN CAONTACT_REQUEST');
+    console.log('connected to CONTACT REQUEST ---', req.params[0]);
+
+
+    var newRequest = new Request({
+        sender: usernameFromToken,
+        receiver: req.params[0],
+        date: ''
+    });
+
+    // save the sample user
+    newRequest.save(function(err) {
+        if (err) throw err;
+
+        console.log('Request saved successfully');
+
+        res.json({
+            success: true
+        });
+    });
+
+});
+
+apiRoutes.get('/contact-requests/sent', function(req, res){
+    console.log('USERNAME in get REQUESTS === ', usernameFromToken);
+    console.log('contact-requests/sent--------');
+    var result = [];
+
+
+    Request.find({sender: usernameFromToken}, function(err,contactreq){
+        contactreq.forEach(function (obje){
+            User.findOne({username: obje.receiver}, function(err, user){
+                /*console.log('findOneRequest: ', user);*/
+                result.push({isFromUs: true,
+                user: user,
+                createdAt: ''
+                });
+                if (result.length == contactreq.length) {
+                    console.log('result size: ', result.length + '  ' + contactreq.length);
+                    res.send({
+                        requests: result
+                    })
+
+                }
+            });
+            console.log('found requests: ', obje.receiver);
+        });
+        });
+
+        /*res.send({
+      });*/
+});
+
 
 
 
