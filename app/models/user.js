@@ -9,5 +9,7 @@ module.exports = mongoose.model('User', new Schema({
     isContact: Boolean,
     displayName: String,
     username: String,
-    avatarUrl: String
+    avatarUrl: String,
+    friends: Array
+
 }));

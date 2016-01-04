@@ -429,24 +429,45 @@ apiRoutes.post('/contact-requests/*', function(req, res) {
     console.log('IN CAONTACT_REQUEST');
     console.log('connected to CONTACT REQUEST ---', req.params[0]);
 
+    Request.findOne({$and: [{sender: usernameFromToken}, {receiver: req.params[0]}]}, function(err, result){
+        if (result){
+            console.log('such request exist');
+        } else{
+            console.log('no such request');
+            User.findOne({username: usernameFromToken}, function(err, user){
 
-    var newRequest = new Request({
-        sender: usernameFromToken,
-        receiver: req.params[0],
-        date: ''
+                console.log('user.friends------', user.friends);
+                for (var i = 0; i < user.friends.length; i++){
+                    if (req.params[0] == user.friends[i]){
+                        console.log('obje ==== name');
+                        exist = 1;
+                        break;
+                    }
+                }
+
+                if (exist == 1){
+                    res.send({success: false});
+                } else {
+                    var newRequest = new Request({
+                        sender: usernameFromToken,
+                        receiver: req.params[0],
+                        date: ''
+                    });
+
+                    // save the sample user
+                    newRequest.save(function(err) {
+                        if (err) throw err;
+
+                        console.log('Request saved successfully');
+
+                        res.json({
+                            success: true
+                        });
+                    });
+                }
+            });
+        }
     });
-
-    // save the sample user
-    newRequest.save(function(err) {
-        if (err) throw err;
-
-        console.log('Request saved successfully');
-
-        res.json({
-            success: true
-        });
-    });
-
 });
 
 apiRoutes.get('/contact-requests/sent', function(req, res){
@@ -474,11 +495,93 @@ apiRoutes.get('/contact-requests/sent', function(req, res){
             console.log('found requests: ', obje.receiver);
         });
         });
-
-        /*res.send({
-      });*/
 });
 
+
+apiRoutes.get('/contact-requests/received', function(req, res){
+    console.log('USERNAME in get REQUESTS === ', usernameFromToken);
+    console.log('contact-requests/received--------');
+    var result = [];
+
+
+    Request.find({receiver: usernameFromToken}, function(err,contactreq){
+        contactreq.forEach(function (obje){
+            User.findOne({username: obje.sender}, function(err, user){
+                /*console.log('findOneRequest: ', user);*/
+                result.push({isFromUs: false,
+                    user: user,
+                    createdAt: ''
+                });
+                if (result.length == contactreq.length) {
+                    console.log('result size: ', result.length + '  ' + contactreq.length);
+                    res.send({
+                        requests: result
+                    })
+
+                }
+            });
+            console.log('found requests: ', obje.receiver);
+        });
+    });
+});
+
+apiRoutes.put('/contact-requests/*', function(req, res) {
+    console.log('IN Contact_REQUEST_response');
+    console.log('connected to CONTACT Response to REQUEST ---', req.body.response);
+
+    if (req.body.response == 'accept'){
+        User.update({username : usernameFromToken}, {$push:{friends: req.params[0]}}, function (next){
+            User.update({username: req.params[0]}, {$push:{friends: usernameFromToken}}, function (next){
+                Request.remove({$and: [{sender: req.params[0]}, {receiver: usernameFromToken}]}, function(next){
+                    res.json({
+                        success: true
+                    })
+                });
+            });
+
+        });
+    } else {
+        Request.remove({$and: [{sender: req.params[0]}, {receiver: usernameFromToken}]}, function(next){
+            res.json({
+                success: true
+            })
+        });
+    }
+});
+
+apiRoutes.get('/contacts', function(req, res){
+    console.log('contacts GET--------', usernameFromToken);
+    var result = [];
+
+    User.findOne({username: usernameFromToken}, function(err,user){
+        user.friends.forEach(function (obje){
+            User.findOne({username: obje}, function(err, userToSend){
+                console.log('findOneRequest: ', userToSend);
+                result.push(userToSend);
+                if (result.length == user.friends.length) {
+                    console.log('result size: ', result.length + '  ' + user.friends.length);
+                    res.send({
+                        contacts: result
+                    })
+
+                }
+            });
+        });
+    });
+});
+
+
+apiRoutes.delete('/contacts/*', function(req, res) {
+    console.log('IN Contact_DELETE');
+
+    User.update({username : usernameFromToken}, {$pull:{friends: req.params[0]}}, function (next){
+        User.update({username: req.params[0]}, {$pull:{friends: usernameFromToken}}, function (next){
+                res.json({
+                    success: true
+                })
+        });
+    });
+});
 
 
 
