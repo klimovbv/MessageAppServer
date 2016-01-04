@@ -13,6 +13,7 @@ var jwt    = require('jsonwebtoken'); // used to create, sign, and verify tokens
 var config = require('./config'); // get our config file
 var User   = require('./app/models/user'); // get our mongoose model
 var Request = require('./app/models/contactrequest');
+var Message = require('./app/models/message');
 
 var fs = require('fs');
 var multiparty = require('multiparty');
@@ -136,7 +137,7 @@ apiRoutes.put('/avatar', function(req, res) {
             if(fs.existsSync(uploadFile.path)) {
                 //если загружаемый файл существует удаляем его
                 fs.unlinkSync(uploadFile.path);
-
+                console.log('path=========', filePath);
                 User.update({
                     username: fileName
                 }, {$set: {avatarIrl: filePath}}, function (err, itemsUpdated) {
@@ -583,6 +584,159 @@ apiRoutes.delete('/contacts/*', function(req, res) {
     });
 });
 
+//---------------------------------//
+//Message API//
+//---------------------------------//
+
+apiRoutes.post('/messages', function(req, res) {
+    console.log('connected /messages POST---');
+    // создаем форму
+    var form = new multiparty.Form();
+    //здесь будет храниться путь с загружаемому файлу, его тип и размер
+    var uploadFile = {uploadPath: '', type: '', size: 0};
+    //максимальный размер файла
+    var maxSize = 20 * 1024 * 1024; //20MB
+    //поддерживаемые типы(в данном случае это картинки формата jpeg,jpg и png)
+    var supportMimeTypes = ['image/jpg', 'image/jpeg', 'image/png'];
+    //массив с ошибками произошедшими в ходе загрузки файла
+    var errors = [];
+    var filePath;
+    var fileName;
+    var receiver;
+    var message;
+    console.log('Message from url === ', req.part);
+
+    //если произошла ошибка
+    form.on('error', function(err){
+        if(fs.existsSync(uploadFile.path)) {
+            //если загружаемый файл существует удаляем его
+            fs.unlinkSync(uploadFile.path);
+            console.log('error');
+        }
+    });
+
+    form.on('close', function() {
+        //если нет ошибок и все хорошо
+        if(errors.length == 0) {
+            //сообщаем что все хорошо
+            console.log('path=========', filePath + ' RECEIVER == ' + receiver);
+
+            var newMessage = new Message({
+                sender: usernameFromToken,
+                recipient: receiver,
+                imageUrl: filePath,
+                message: message
+            });
+
+            // save the sample user
+            newMessage.save(function(err) {
+                if (err) throw err;
+
+                console.log('Message saved successfully');
+
+                res.json({
+                    success: true
+                });
+            });
+
+        }
+        else {
+            //сообщаем что все плохо и какие произошли ошибки
+            res.send({status: 'bad', errors: errors});
+        }
+    });
+
+    form.on('field', function(err, field) {
+         console.log('on FIELD -- TO ' + field);
+        if (message == null) {
+            message = field;
+            console.log('MESSAGE -------', message);
+        } else {
+            receiver = field;
+            console.log('on receiver  ' + receiver);
+        }
+    });
+
+
+    // при поступление файла
+    form.on('part', function(part) {
+
+        console.log('RECEIVER==');
+        //читаем его размер в байтах
+        uploadFile.size = part.byteCount;
+        console.log('uploadFile.size ', uploadFile.size );
+        //читаем его тип
+        uploadFile.type = part.headers['content-type'];
+        console.log('uploadFile.type', uploadFile.type);
+        var date = new Date();
+        var formatedDate = date.getFullYear() + '' + date.getMonth()+1 + ''  + date.getDate() + ''  + date.getHours()
+            + '' + date.getMinutes() + ''  + date.getSeconds();
+
+
+        fileName = usernameFromToken + "_" + receiver + "_" + formatedDate;
+        console.log('fileName in PART === ', fileName);
+        //путь для сохранения файла
+
+        uploadFile.path = './files/' + fileName + '.jpeg'/*part.filename*/;
+        filePath = 'http://192.168.0.101:8888/api/files/' + fileName + '.jpeg'/*part.filename*/;
+
+        //проверяем размер файла, он не должен быть больше максимального размера
+        if(uploadFile.size > maxSize) {
+            errors.push('File size is ' + uploadFile.size + '. Limit is' + (maxSize / 1024 / 1024) + 'MB.');
+        }
+
+        //проверяем является ли тип поддерживаемым
+        if(supportMimeTypes.indexOf(uploadFile.type) == -1) {
+            errors.push('Unsupported mimetype ' + uploadFile.type);
+        }
+
+        //если нет ошибок то создаем поток для записи файла
+        if(errors.length == 0) {
+            var out = fs.createWriteStream(uploadFile.path);
+            part.pipe(out);
+        }
+        else {
+            //пропускаем
+            //вообще здесь нужно как-то остановить загрузку и перейти к onclose
+            part.resume();
+        }
+    });
+
+    // парсим форму
+    form.parse(req);
+});
+
+apiRoutes.get('/messages', function(req, res){
+    console.log('messages/received--------');
+    var result = [];
+
+
+    Message.find({recipient: usernameFromToken}, function(err,messages){
+        messages.forEach(function (obje){
+            User.findOne({username: obje.sender}, function(err, user){
+                console.log('findOneRequest: ', user);
+                result.push({
+                    /*id: '',*/
+                    createdAt: '',
+                    shortMessage: '',
+                    longMessage: obje.message,
+                    imageUrl: obje.imageUrl,
+                    otherUser: user,
+                    isFromUs: false,
+                    isSelected: false,
+                    isRead: false
+                });
+                if (result.length == messages.length) {
+                    console.log('result size: ', result.length + '  ' + messages.length);
+                    res.send({
+                        messages: result
+                    })
+
+                }
+            });
+        });
+    });
+});
 
 
 // apply the routes to our application with the prefix /api
