@@ -429,6 +429,10 @@ apiRoutes.get('/users', function(req, res) {
 apiRoutes.post('/contact-requests/*', function(req, res) {
     console.log('IN CAONTACT_REQUEST');
     console.log('connected to CONTACT REQUEST ---', req.params[0]);
+    var exist = 0;
+    var date = new Date();
+    var createdAt = date.getUTCFullYear() + '-' + date.getUTCMonth()+1 + '-'  + date.getUTCDate() + '-'  + date.getUTCHours()
+        + '-' + date.getMinutes();
 
     Request.findOne({$and: [{sender: usernameFromToken}, {receiver: req.params[0]}]}, function(err, result){
         if (result){
@@ -452,7 +456,7 @@ apiRoutes.post('/contact-requests/*', function(req, res) {
                     var newRequest = new Request({
                         sender: usernameFromToken,
                         receiver: req.params[0],
-                        date: ''
+                        createdAt: createdAt
                     });
 
                     // save the sample user
@@ -483,7 +487,7 @@ apiRoutes.get('/contact-requests/sent', function(req, res){
                 /*console.log('findOneRequest: ', user);*/
                 result.push({isFromUs: true,
                 user: user,
-                createdAt: ''
+                createdAt: obje.createdAt
                 });
                 if (result.length == contactreq.length) {
                     console.log('result size: ', result.length + '  ' + contactreq.length);
@@ -511,7 +515,7 @@ apiRoutes.get('/contact-requests/received', function(req, res){
                 /*console.log('findOneRequest: ', user);*/
                 result.push({isFromUs: false,
                     user: user,
-                    createdAt: ''
+                    createdAt: obje.createdAt
                 });
                 if (result.length == contactreq.length) {
                     console.log('result size: ', result.length + '  ' + contactreq.length);
@@ -604,6 +608,7 @@ apiRoutes.post('/messages', function(req, res) {
     var fileName;
     var receiver;
     var message;
+    var createdAt;
     console.log('Message from url === ', req.part);
 
     //если произошла ошибка
@@ -621,21 +626,24 @@ apiRoutes.post('/messages', function(req, res) {
             //сообщаем что все хорошо
             console.log('path=========', filePath + ' RECEIVER == ' + receiver);
 
+
             var newMessage = new Message({
                 sender: usernameFromToken,
                 recipient: receiver,
                 imageUrl: filePath,
-                message: message
+                longMessage: message,
+                createdAt: createdAt,
+                isRead: false
             });
 
             // save the sample user
-            newMessage.save(function(err) {
+            newMessage.save(function(err, message) {
                 if (err) throw err;
 
-                console.log('Message saved successfully');
+                console.log('Message saved successfully --', message);
 
                 res.json({
-                    success: true
+                    message: message
                 });
             });
 
@@ -669,8 +677,10 @@ apiRoutes.post('/messages', function(req, res) {
         uploadFile.type = part.headers['content-type'];
         console.log('uploadFile.type', uploadFile.type);
         var date = new Date();
-        var formatedDate = date.getFullYear() + '' + date.getMonth()+1 + ''  + date.getDate() + ''  + date.getHours()
-            + '' + date.getMinutes() + ''  + date.getSeconds();
+
+        createdAt = date.getUTCFullYear() + '-' + date.getUTCMonth()+1 + '-'  + date.getUTCDate() + '-'  + date.getUTCHours()
+            + '-' + date.getMinutes();
+        var formatedDate = createdAt + "-" + date.getSeconds();
 
 
         fileName = usernameFromToken + "_" + receiver + "_" + formatedDate;
@@ -706,38 +716,169 @@ apiRoutes.post('/messages', function(req, res) {
     form.parse(req);
 });
 
-apiRoutes.get('/messages', function(req, res){
-    console.log('messages/received--------');
+apiRoutes.get('/messages', function(req, res) {
+    console.log('messages/RECEIVED--------');
+    var result = [];
+
+    var urlq = req.url;
+    console.log('url----', urlq);
+    var url_parts = url.parse(urlq, true);
+    console.log('url_parts----', url_parts);
+    var query = url_parts.query;
+    var includeSent = query.includeSent;
+    console.log('--includeSend ', includeSent);
+    var includeReceived = query.includeReceived;
+    console.log('--includeReceived ', includeReceived);
+    var contactName = query.contactId;
+
+    if (includeSent == "true") {
+        console.log('includeSent');
+
+        if (includeReceived == "true"){
+            console.log('includeSent && includeReceived');
+            Message.find({sender: {$in: [usernameFromToken, contactName]}}, function(err,messages){
+                var mLength = messages.length;
+                console.log('MESSAGES LENGTH', messages.length);
+                messages.forEach(function (obje){
+                    if (obje.sender == usernameFromToken){
+                        console.log('NAME===', usernameFromToken);// i sender
+                        User.findOne({username: obje.recipient}, function(err, user){
+                            console.log('MessageID: ', obje._id);
+                            result.push({
+                                _id: obje._id,
+                                createdAt: obje.createdAt,
+                                shortMessage: '',
+                                longMessage: obje.longMessage,
+                                imageUrl: obje.imageUrl,
+                                otherUser: user,
+                                isFromUs: true,
+                                isSelected: false,
+                                isRead: obje.isRead
+                            });
+                            if (result.length == mLength) {
+                                console.log('result size: ', result.length + '  ' + messages.length);
+                                res.send({
+                                    messages: result
+                                })
+                            }
+                        });
+                    } else if (obje.sender == contactName) {
+                        console.log('NAME===', contactName);// i recipient
+                        User.findOne({username: obje.sender}, function(err, user){
+                            console.log('MessageID: ', obje._id);
+                            result.push({
+                                _id: obje._id,
+                                createdAt: obje.createdAt,
+                                shortMessage: '',
+                                longMessage: obje.longMessage,
+                                imageUrl: obje.imageUrl,
+                                otherUser: user,
+                                isFromUs: false,   ///////CHANGE
+                                isSelected: false, ///////CHANGE
+                                isRead: obje.isRead
+                            });
+                            if (result.length == mLength) {
+                                console.log('result size: ', result.length + '  ' + messages.length);
+                                res.send({
+                                    messages: result
+                                })
+                            }
+                    });}
+
+
+                });
+            });
+
+        } else {
+            Message.find({sender: usernameFromToken}, function(err,messages){
+                messages.forEach(function (obje){
+                    User.findOne({username: obje.recipient}, function(err, user){
+                        console.log('MessageID: ', obje._id);
+                        result.push({
+                            _id: obje._id,
+                            createdAt: obje.createdAt,
+                            shortMessage: '',
+                            longMessage: obje.longMessage,
+                            imageUrl: obje.imageUrl,
+                            otherUser: user,
+                            isFromUs: true,
+                            isSelected: false,
+                            isRead: obje.isRead
+                        });
+                        if (result.length == messages.length) {
+                            console.log('result size: ', result.length + '  ' + messages.length);
+                            res.send({
+                                messages: result
+                            })
+
+                        }
+                    });
+                });
+            });
+        };
+
+
+
+
+    } else if (includeReceived == "true") {
+        console.log('includeReceived');
+        Message.find({recipient: usernameFromToken}, function(err,messages){
+            messages.forEach(function (obje){
+                User.findOne({username: obje.sender}, function(err, user){
+                    console.log('MessageID: ', obje._id);
+                    result.push({
+                        _id: obje._id,
+                        createdAt: obje.createdAt,
+                        shortMessage: '',
+                        longMessage: obje.longMessage,
+                        imageUrl: obje.imageUrl,
+                        otherUser: user,
+                        isFromUs: false,
+                        isSelected: false,
+                        isRead: obje.isRead
+                    });
+                    if (result.length == messages.length) {
+                        console.log('result size: ', result.length + '  ' + messages.length);
+                        res.send({
+                            messages: result
+                        })
+
+                    }
+                });
+            });
+        });
+    }
+
+
+
+
+});
+
+
+apiRoutes.delete('/messages/*', function(req, res){
+    console.log('messages/delete--------', req.params[0]);
     var result = [];
 
 
-    Message.find({recipient: usernameFromToken}, function(err,messages){
-        messages.forEach(function (obje){
-            User.findOne({username: obje.sender}, function(err, user){
-                console.log('findOneRequest: ', user);
-                result.push({
-                    /*id: '',*/
-                    createdAt: '',
-                    shortMessage: '',
-                    longMessage: obje.message,
-                    imageUrl: obje.imageUrl,
-                    otherUser: user,
-                    isFromUs: false,
-                    isSelected: false,
-                    isRead: false
-                });
-                if (result.length == messages.length) {
-                    console.log('result size: ', result.length + '  ' + messages.length);
-                    res.send({
-                        messages: result
-                    })
-
-                }
-            });
-        });
+    Message.remove({_id: req.params[0]}, function(next){
+        console.log('DELETED SUCCSESS');
+        res.json({
+            success: true
+        })
     });
 });
 
+apiRoutes.put('/messages/*/is-read', function(req, res){
+    console.log('messages/IS-READ--------', req.params[0]);
+    var result = [];
+
+    Message.update({_id: req.params[0]}, {isRead: true}, function(next){
+        console.log('ISREAD SUCCSESS');
+        res.json({
+            success: true
+        })
+    });
+});
 
 // apply the routes to our application with the prefix /api
 app.use('/api', apiRoutes);

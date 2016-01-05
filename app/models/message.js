@@ -6,5 +6,7 @@ module.exports = mongoose.model('Message', new Schema({
     sender: String,
     recipient: String,
     imageUrl: String,
-    message: String
+    longMessage: String,
+    createdAt: String,
+    isRead: Boolean
 }));

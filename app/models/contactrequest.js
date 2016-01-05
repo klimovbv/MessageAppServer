@@ -5,5 +5,5 @@ var Schema = mongoose.Schema;
 module.exports = mongoose.model('Request', new Schema({
     sender: String,
     receiver: String,
-    date: String
+    createdAt: String
 }));
