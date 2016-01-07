@@ -1,3 +1,4 @@
+//AIzaSyDHXJ3WRIlq8ua_lO815qnVlhGvgjm39aM
 var express     = require('express');
 var app         = express();
 var bodyParser  = require('body-parser');
@@ -48,7 +49,6 @@ var apiRoutes = express.Router();
 
 // route to authenticate a user (POST http://localhost:8080/api/authenticate)
 apiRoutes.post('/token', function(req, res) {
-    console.log('connected---');
     // find the user
     User.findOne({
         username: req.body.username
@@ -59,19 +59,16 @@ apiRoutes.post('/token', function(req, res) {
         if (!user) {
             res.json({ success: false, message: 'Authentication failed. User not found.' });
         } else if (user) {
-            console.log('user found', req.body.username);
             // check if password matches
             if (user.password != req.body.password) {
                 res.json({ success: false, message: 'Authentication failed. Wrong password.' });
             } else {
-                console.log('password correct----');
                 // if user is found and password is right
                 // create a token
                 var token = jwt.sign(req.body.username, app.get('superSecret'), {
                     expiresIn: 1000 * 60 * 60 // expires in 24 hours
                 });
 
-                console.log('token !!!', token);
 
                 // return the information including token as JSON
                 /*res.send(token.json);*/
@@ -88,7 +85,6 @@ apiRoutes.post('/token', function(req, res) {
 });
 
 apiRoutes.put('/avatar', function(req, res) {
-    console.log('connected /avatar---');
     // создаем форму
     var form = new multiparty.Form();
     //здесь будет храниться путь с загружаемому файлу, его тип и размер
@@ -111,7 +107,6 @@ apiRoutes.put('/avatar', function(req, res) {
         if(fs.existsSync(uploadFile.path)) {
             //если загружаемый файл существует удаляем его
             fs.unlinkSync(uploadFile.path);
-            console.log('error');
         }
     });
 
@@ -198,7 +193,6 @@ apiRoutes.put('/avatar', function(req, res) {
 
 //-----------------------------//
 apiRoutes.post('/account', function(req, res) {
-    console.log('connected to account register ---', req.body.username + ' / ' + req.body.email + ' / ' + req.body.password);
     var username = req.body.username;
     var displayname = req.body.displayname;
     var email = req.body.email;
@@ -294,6 +288,28 @@ apiRoutes.put('/password', function(req, res) {
     });
 });
 
+apiRoutes.put('/account/gcm-registration', function(req, res) {
+
+    var registrationId = req.body.registrationId;
+
+    console.log('connected to account update GCM ---', req.body.registrationId);
+
+    User.update({
+        username: usernameFromToken
+    }, {$set: {gcmId: registrationId}}, function (err, itemsUpdated) {
+        if (err) {
+            console.log(err);
+        } else if (itemsUpdated) {
+            console.log('Updated GCM ID successfully', itemsUpdated);
+            res.json({
+                success: true
+            });
+        } else {
+            console.log('User not found in DB');
+        }
+    });
+});
+
 // TODO: route middleware to verify a token
 apiRoutes.use(function(req, res, next) {
 
@@ -311,7 +327,6 @@ apiRoutes.use(function(req, res, next) {
                 // if everything is good, save to request for use in other routes
                 req.decoded = decoded;
                 usernameFromToken = decoded;
-                console.log(' decoded token ', decoded);
                 next();
             }
         });
@@ -343,7 +358,6 @@ apiRoutes.get('/', function(req, res) {
 //get user for login with token
 apiRoutes.get('/account', function(req, res) {
     var token = req.headers['x-access-token'];
-    console.log('getting...', token);
 
     jwt.verify(token, app.get('superSecret'), function(err, decoded) {
         if (err) {
@@ -351,7 +365,6 @@ apiRoutes.get('/account', function(req, res) {
         } else {
             // if everything is good, save to request for use in other routes
             req.decoded = decoded;
-            /*console.log(' decoded token ', decoded);*/
 
             User.findOne({
                 username: decoded
@@ -363,7 +376,6 @@ apiRoutes.get('/account', function(req, res) {
                 if (!user) {
                     res.json({ success: false, message: 'Authentication failed. User not found.' });
                 } else if (user) {
-                    console.log(' decoded token username', decoded);
 
                     // return the information including token as JSON
                     res.json(user);
@@ -377,7 +389,6 @@ apiRoutes.get('/account', function(req, res) {
 });
 
 apiRoutes.get('/files/*', function(req, res){
-    console.log('request url', req.url);
     var file = __dirname + req.url;
     var filename = path.basename(file);
     /*var mimetype = mime.lookup(file);*/
@@ -395,24 +406,17 @@ apiRoutes.get('/files/*', function(req, res){
 //-------------------------------------------------------//
 apiRoutes.get('/users', function(req, res) {
     var urlq = req.url;
-    console.log('url----', urlq);
     var url_parts = url.parse(urlq, true);
-    console.log('url_parts----', url_parts);
     var query = url_parts.query;
-    console.log('query----', query.query);
     var queryForSearch = /*'/.*' + */query.query/* + '.*!/i'*/;
-    console.log('queryForSearch ==== ', queryForSearch);
     if (queryForSearch == ''){
-        console.log('null query!!!!!')
         res.send({
             users:[],
             query: queryForSearch});
     } else {
-        console.log('userNameFromToken ==== ', usernameFromToken);
 
 
         User.find({$and: [{ username: new RegExp(queryForSearch, 'i')}, { username: {$ne: usernameFromToken}}]}/*{ $in: query}*/, function (err, users) {
-            console.log('result search---', users);
 
             res.send({
                 users: users,
@@ -427,8 +431,6 @@ apiRoutes.get('/users', function(req, res) {
 //------------------------------------------------------------------//
 
 apiRoutes.post('/contact-requests/*', function(req, res) {
-    console.log('IN CAONTACT_REQUEST');
-    console.log('connected to CONTACT REQUEST ---', req.params[0]);
     var exist = 0;
     var date = new Date();
     var createdAt = date.getUTCFullYear() + '-' + date.getUTCMonth()+1 + '-'  + date.getUTCDate() + '-'  + date.getUTCHours()
@@ -463,6 +465,7 @@ apiRoutes.post('/contact-requests/*', function(req, res) {
                     newRequest.save(function(err) {
                         if (err) throw err;
 
+                        sendGCM('0', '1', '0', req.params[0], usernameFromToken);
                         console.log('Request saved successfully');
 
                         res.json({
@@ -476,8 +479,6 @@ apiRoutes.post('/contact-requests/*', function(req, res) {
 });
 
 apiRoutes.get('/contact-requests/sent', function(req, res){
-    console.log('USERNAME in get REQUESTS === ', usernameFromToken);
-    console.log('contact-requests/sent--------');
     var result = [];
 
 
@@ -490,22 +491,18 @@ apiRoutes.get('/contact-requests/sent', function(req, res){
                 createdAt: obje.createdAt
                 });
                 if (result.length == contactreq.length) {
-                    console.log('result size: ', result.length + '  ' + contactreq.length);
                     res.send({
                         requests: result
                     })
 
                 }
             });
-            console.log('found requests: ', obje.receiver);
         });
         });
 });
 
 
 apiRoutes.get('/contact-requests/received', function(req, res){
-    console.log('USERNAME in get REQUESTS === ', usernameFromToken);
-    console.log('contact-requests/received--------');
     var result = [];
 
 
@@ -518,21 +515,17 @@ apiRoutes.get('/contact-requests/received', function(req, res){
                     createdAt: obje.createdAt
                 });
                 if (result.length == contactreq.length) {
-                    console.log('result size: ', result.length + '  ' + contactreq.length);
                     res.send({
                         requests: result
                     })
 
                 }
             });
-            console.log('found requests: ', obje.receiver);
         });
     });
 });
 
 apiRoutes.put('/contact-requests/*', function(req, res) {
-    console.log('IN Contact_REQUEST_response');
-    console.log('connected to CONTACT Response to REQUEST ---', req.body.response);
 
     if (req.body.response == 'accept'){
         User.update({username : usernameFromToken}, {$push:{friends: req.params[0]}}, function (next){
@@ -555,16 +548,13 @@ apiRoutes.put('/contact-requests/*', function(req, res) {
 });
 
 apiRoutes.get('/contacts', function(req, res){
-    console.log('contacts GET--------', usernameFromToken);
     var result = [];
 
     User.findOne({username: usernameFromToken}, function(err,user){
         user.friends.forEach(function (obje){
             User.findOne({username: obje}, function(err, userToSend){
-                console.log('findOneRequest: ', userToSend);
                 result.push(userToSend);
                 if (result.length == user.friends.length) {
-                    console.log('result size: ', result.length + '  ' + user.friends.length);
                     res.send({
                         contacts: result
                     })
@@ -577,7 +567,6 @@ apiRoutes.get('/contacts', function(req, res){
 
 
 apiRoutes.delete('/contacts/*', function(req, res) {
-    console.log('IN Contact_DELETE');
 
     User.update({username : usernameFromToken}, {$pull:{friends: req.params[0]}}, function (next){
         User.update({username: req.params[0]}, {$pull:{friends: usernameFromToken}}, function (next){
@@ -592,8 +581,34 @@ apiRoutes.delete('/contacts/*', function(req, res) {
 //Message API//
 //---------------------------------//
 
+sendGCM = function(operation, type, entityId, entityName, entityOwnerName/*, callback*/){
+    User.findOne({username: entityName}, function(err, user){
+        console.log('sendGCM======');
+        request({
+            method: 'POST',
+            uri:'https://android.googleapis.com/gcm/send',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'key=AIzaSyDHXJ3WRIlq8ua_lO815qnVlhGvgjm39aM'
+            },
+            body: JSON.stringify({
+                "registration_ids" : [user.gcmId],
+                "data": {
+                    "operation": operation,
+                    "type": type,
+                    entityId: entityId,
+                    "entityOwnerName": entityOwnerName
+                },
+                "time_to_alive": 108
+            })
+        }, function(error, response, body){
+            console.log('POST response======');
+           /* callback({'response': "Success"});*/
+        })
+    })
+};
+
 apiRoutes.post('/messages', function(req, res) {
-    console.log('connected /messages POST---');
     // создаем форму
     var form = new multiparty.Form();
     //здесь будет храниться путь с загружаемому файлу, его тип и размер
@@ -609,7 +624,6 @@ apiRoutes.post('/messages', function(req, res) {
     var receiver;
     var message;
     var createdAt;
-    console.log('Message from url === ', req.part);
 
     //если произошла ошибка
     form.on('error', function(err){
@@ -641,7 +655,7 @@ apiRoutes.post('/messages', function(req, res) {
                 if (err) throw err;
 
                 console.log('Message saved successfully --', message);
-
+                sendGCM('0', '3', message._id, receiver, usernameFromToken);
                 res.json({
                     message: message
                 });
@@ -717,33 +731,23 @@ apiRoutes.post('/messages', function(req, res) {
 });
 
 apiRoutes.get('/messages', function(req, res) {
-    console.log('messages/RECEIVED--------');
     var result = [];
 
     var urlq = req.url;
-    console.log('url----', urlq);
     var url_parts = url.parse(urlq, true);
-    console.log('url_parts----', url_parts);
     var query = url_parts.query;
     var includeSent = query.includeSent;
-    console.log('--includeSend ', includeSent);
     var includeReceived = query.includeReceived;
-    console.log('--includeReceived ', includeReceived);
     var contactName = query.contactId;
 
     if (includeSent == "true") {
-        console.log('includeSent');
 
         if (includeReceived == "true"){
-            console.log('includeSent && includeReceived');
             Message.find({sender: {$in: [usernameFromToken, contactName]}}, function(err,messages){
                 var mLength = messages.length;
-                console.log('MESSAGES LENGTH', messages.length);
                 messages.forEach(function (obje){
                     if (obje.sender == usernameFromToken){
-                        console.log('NAME===', usernameFromToken);// i sender
                         User.findOne({username: obje.recipient}, function(err, user){
-                            console.log('MessageID: ', obje._id);
                             result.push({
                                 _id: obje._id,
                                 createdAt: obje.createdAt,
@@ -756,16 +760,13 @@ apiRoutes.get('/messages', function(req, res) {
                                 isRead: obje.isRead
                             });
                             if (result.length == mLength) {
-                                console.log('result size: ', result.length + '  ' + messages.length);
                                 res.send({
                                     messages: result
                                 })
                             }
                         });
                     } else if (obje.sender == contactName) {
-                        console.log('NAME===', contactName);// i recipient
                         User.findOne({username: obje.sender}, function(err, user){
-                            console.log('MessageID: ', obje._id);
                             result.push({
                                 _id: obje._id,
                                 createdAt: obje.createdAt,
@@ -778,7 +779,6 @@ apiRoutes.get('/messages', function(req, res) {
                                 isRead: obje.isRead
                             });
                             if (result.length == mLength) {
-                                console.log('result size: ', result.length + '  ' + messages.length);
                                 res.send({
                                     messages: result
                                 })
@@ -793,7 +793,6 @@ apiRoutes.get('/messages', function(req, res) {
             Message.find({sender: usernameFromToken}, function(err,messages){
                 messages.forEach(function (obje){
                     User.findOne({username: obje.recipient}, function(err, user){
-                        console.log('MessageID: ', obje._id);
                         result.push({
                             _id: obje._id,
                             createdAt: obje.createdAt,
@@ -806,7 +805,6 @@ apiRoutes.get('/messages', function(req, res) {
                             isRead: obje.isRead
                         });
                         if (result.length == messages.length) {
-                            console.log('result size: ', result.length + '  ' + messages.length);
                             res.send({
                                 messages: result
                             })
@@ -821,11 +819,9 @@ apiRoutes.get('/messages', function(req, res) {
 
 
     } else if (includeReceived == "true") {
-        console.log('includeReceived');
         Message.find({recipient: usernameFromToken}, function(err,messages){
             messages.forEach(function (obje){
                 User.findOne({username: obje.sender}, function(err, user){
-                    console.log('MessageID: ', obje._id);
                     result.push({
                         _id: obje._id,
                         createdAt: obje.createdAt,
@@ -838,7 +834,6 @@ apiRoutes.get('/messages', function(req, res) {
                         isRead: obje.isRead
                     });
                     if (result.length == messages.length) {
-                        console.log('result size: ', result.length + '  ' + messages.length);
                         res.send({
                             messages: result
                         })
@@ -858,14 +853,22 @@ apiRoutes.get('/messages', function(req, res) {
 apiRoutes.delete('/messages/*', function(req, res){
     console.log('messages/delete--------', req.params[0]);
     var result = [];
-
-
-    Message.remove({_id: req.params[0]}, function(next){
+    removeMessage = function (messageId) {Message.remove({_id: messageId}, function(next){
         console.log('DELETED SUCCSESS');
+
         res.json({
             success: true
         })
-    });
+    });};
+
+    Message.findOne({_id: req.params[0]}, function(err, message){
+        var urlImage = url.parse(message.imageUrl);
+        var imageToDelete = path.basename(urlImage.pathname);
+        console.log('Foubded deleted message' + imageToDelete);
+        fs.unlinkSync('files/' + imageToDelete);
+        console.log('Image deleted');
+        removeMessage(req.params[0]);
+        })
 });
 
 apiRoutes.put('/messages/*/is-read', function(req, res){
@@ -878,6 +881,131 @@ apiRoutes.put('/messages/*/is-read', function(req, res){
             success: true
         })
     });
+});
+
+apiRoutes.get('/messages/*', function(req, res) {
+    var result = [];
+
+    Message.findOne({_id: req.params[0]}, function(err, message){
+        res.send({
+            message: message
+        })
+    });
+
+    var urlq = req.url;
+    var url_parts = url.parse(urlq, true);
+    var query = url_parts.query;
+    var includeSent = query.includeSent;
+    var includeReceived = query.includeReceived;
+    var contactName = query.contactId;
+
+    if (includeSent == "true") {
+
+        if (includeReceived == "true"){
+            Message.find({sender: {$in: [usernameFromToken, contactName]}}, function(err,messages){
+                var mLength = messages.length;
+                messages.forEach(function (obje){
+                    if (obje.sender == usernameFromToken){
+                        User.findOne({username: obje.recipient}, function(err, user){
+                            result.push({
+                                _id: obje._id,
+                                createdAt: obje.createdAt,
+                                shortMessage: '',
+                                longMessage: obje.longMessage,
+                                imageUrl: obje.imageUrl,
+                                otherUser: user,
+                                isFromUs: true,
+                                isSelected: false,
+                                isRead: obje.isRead
+                            });
+                            if (result.length == mLength) {
+                                res.send({
+                                    messages: result
+                                })
+                            }
+                        });
+                    } else if (obje.sender == contactName) {
+                        User.findOne({username: obje.sender}, function(err, user){
+                            result.push({
+                                _id: obje._id,
+                                createdAt: obje.createdAt,
+                                shortMessage: '',
+                                longMessage: obje.longMessage,
+                                imageUrl: obje.imageUrl,
+                                otherUser: user,
+                                isFromUs: false,   ///////CHANGE
+                                isSelected: false, ///////CHANGE
+                                isRead: obje.isRead
+                            });
+                            if (result.length == mLength) {
+                                res.send({
+                                    messages: result
+                                })
+                            }
+                        });}
+
+
+                });
+            });
+
+        } else {
+            Message.find({sender: usernameFromToken}, function(err,messages){
+                messages.forEach(function (obje){
+                    User.findOne({username: obje.recipient}, function(err, user){
+                        result.push({
+                            _id: obje._id,
+                            createdAt: obje.createdAt,
+                            shortMessage: '',
+                            longMessage: obje.longMessage,
+                            imageUrl: obje.imageUrl,
+                            otherUser: user,
+                            isFromUs: true,
+                            isSelected: false,
+                            isRead: obje.isRead
+                        });
+                        if (result.length == messages.length) {
+                            res.send({
+                                messages: result
+                            })
+
+                        }
+                    });
+                });
+            });
+        };
+
+
+
+
+    } else if (includeReceived == "true") {
+        Message.find({recipient: usernameFromToken}, function(err,messages){
+            messages.forEach(function (obje){
+                User.findOne({username: obje.sender}, function(err, user){
+                    result.push({
+                        _id: obje._id,
+                        createdAt: obje.createdAt,
+                        shortMessage: '',
+                        longMessage: obje.longMessage,
+                        imageUrl: obje.imageUrl,
+                        otherUser: user,
+                        isFromUs: false,
+                        isSelected: false,
+                        isRead: obje.isRead
+                    });
+                    if (result.length == messages.length) {
+                        res.send({
+                            messages: result
+                        })
+
+                    }
+                });
+            });
+        });
+    }
+
+
+
+
 });
 
 // apply the routes to our application with the prefix /api

@@ -10,6 +10,7 @@ module.exports = mongoose.model('User', new Schema({
     displayName: String,
     username: String,
     avatarUrl: String,
-    friends: Array
+    friends: Array,
+    gcmId: String
 
 }));
