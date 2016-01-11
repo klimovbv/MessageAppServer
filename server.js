@@ -161,7 +161,8 @@ apiRoutes.put('/avatar', function(req, res) {
         uploadFile.type = part.headers['content-type'];
         //путь для сохранения файла
         uploadFile.path = './files/' + fileName + '.jpeg'/*part.filename*/;
-        filePath = 'http://192.168.0.101:8888/api/files/' + fileName + '.jpeg'/*part.filename*/;
+        filePath = 'http://5ce2135f.ngrok.io/api/files/' + fileName + '.jpeg'/*part.filename*/;
+        //http://192.168.0.101:8888
 
         //проверяем размер файла, он не должен быть больше максимального размера
         if(uploadFile.size > maxSize) {
@@ -702,8 +703,8 @@ apiRoutes.post('/messages', function(req, res) {
         //путь для сохранения файла
 
         uploadFile.path = './files/' + fileName + '.jpeg'/*part.filename*/;
-        filePath = 'http://192.168.0.101:8888/api/files/' + fileName + '.jpeg'/*part.filename*/;
-
+        filePath = 'http://5ce2135f.ngrok.io/api/files/' + fileName + '.jpeg'/*part.filename*/;
+//http://192.168.0.101:8888
         //проверяем размер файла, он не должен быть больше максимального размера
         if(uploadFile.size > maxSize) {
             errors.push('File size is ' + uploadFile.size + '. Limit is' + (maxSize / 1024 / 1024) + 'MB.');
