@@ -7,5 +7,9 @@
     "jsonwebtoken": "^5.4.1",
     "mongoose": "^4.3.3",
     "morgan": "^1.6.1"
+  },
+
+  "engines": {
+    "node": ">=0.12.7"
   }
 }
