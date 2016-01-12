@@ -9,8 +9,8 @@
     "morgan": "^1.6.1"
   },
   "scripts": {
-    "start": "node app.js",
-    "monitor": "nodemon app.js",
+    "start": "node server.js",
+    "monitor": "nodemon server.js",
     "deploy": "gcloud preview app deploy app.yaml",
     "lint": "jshint --exclude-path=.gitignore .",
     "test": "npm run lint"
