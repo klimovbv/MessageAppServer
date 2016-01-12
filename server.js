@@ -24,7 +24,7 @@ var usernameFromToken;
 // =======================
 // configuration =========
 // =======================
-var port = process.env.OPENSHIFT_NODEJS_PORT || process.env.PORT || 8080; // used to create, sign, and verify tokens
+var port = process.env.OPENSHIFT_NODEJS_PORT || process.env.PORT /*|| 8080*/; // used to create, sign, and verify tokens
 var ip = process.env.OPENSHIFT_NODEJS_IP || "127.0.0.1";
 mongoose.connect(config.database); // connect to database
 app.set('superSecret', config.secret); // secret variable
